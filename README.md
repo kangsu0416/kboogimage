@@ -1,10 +1,11 @@
-# 크보라인업 OG 이미지
+# 번호의 주인: 야구편 OG 이미지
 
-크보라인업의 결과 공유에 사용하는 정적 OG 이미지 저장소입니다.
+번호의 주인: 야구편의 결과 공유에 사용하는 정적 OG 이미지 저장소입니다.
 
 - 이미지 규격: PNG, 1200 × 600
 - 구성: 10개 연고지 × 5개 덕력 등급
-- 공개 경로: `https://kangsu0416.github.io/kboogimage/og-results/{teamId}/tier-{tier}.png`
+- 현재 공개 경로: `https://kangsu0416.github.io/kboogimage/og-results-v2/{teamId}/tier-{tier}.png`
+- 기존 경로: `https://kangsu0416.github.io/kboogimage/og-results/{teamId}/tier-{tier}.png`
 
 ## Team IDs
 
@@ -27,4 +28,4 @@
 - `gold`: 로스터 전문가
 - `champion`: 라인업 마스터
 
-이미지 URL은 외부 공유 플랫폼의 캐시 영향을 받을 수 있으므로 확정된 파일은 같은 경로에서 덮어쓰지 않고 새 버전 경로로 교체하는 것을 권장합니다.
+`og-results-v2`는 `번호의 주인: 야구편` 브랜드를 사용한다. 기존 공유 링크의 호환성과 외부 공유 플랫폼 캐시를 위해 `og-results` 파일은 보존한다.

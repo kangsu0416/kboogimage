@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>크보라인업 OG 이미지</title>
+    <title>번호의 주인: 야구편 OG 이미지</title>
     <style>
       * { box-sizing: border-box; }
       body {
@@ -36,7 +36,7 @@
   </head>
   <body>
     <main>
-      <h1>크보라인업 OG 이미지</h1>
+      <h1>번호의 주인: 야구편 OG 이미지</h1>
       <p>10개 연고지 × 5개 덕력 등급 · 1200 × 600 PNG</p>
       <div id="assets"></div>
     </main>
@@ -54,7 +54,7 @@
         const grid = section.querySelector(".grid");
 
         for (const tier of tiers) {
-          const path = `og-results/${team}/tier-${tier}.png`;
+          const path = `og-results-v2/${team}/tier-${tier}.png`;
           const link = document.createElement("a");
           link.href = path;
           link.innerHTML = `<img src="${path}" alt="${team} ${tier} OG 이미지" loading="lazy" /><strong>${tier}</strong>`;
