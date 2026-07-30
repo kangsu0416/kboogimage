@@ -1,10 +1,12 @@
 from hashlib import sha256
 from pathlib import Path
 
-from PIL import Image
+from PIL import Image, ImageChops
+from rebrand_og_images import find_tier_artwork_top
 
 
 ROOT = Path(__file__).resolve().parents[1]
+SOURCE = ROOT / "og-results"
 OUTPUTS = (ROOT / "og-results-v2", ROOT / "og-results-v3")
 TEAM_IDS = (
     "daegu",
@@ -20,7 +22,7 @@ TEAM_IDS = (
 )
 TIERS = ("starter", "bronze", "silver", "gold", "champion")
 EXPECTED_SIZE = (1200, 600)
-HEADER_CARD_BOTTOM = 280
+HEADER_CARD_BOTTOM = 264
 MIN_CARD_TIER_GAP = 32
 
 
@@ -36,13 +38,6 @@ def foreground_count(image: Image.Image, y: int) -> int:
         if is_dark or is_saturated:
             count += 1
     return count
-
-
-def find_tier_top(image: Image.Image) -> int:
-    for y in range(314, 451):
-        if foreground_count(image, y) >= 50:
-            return y
-    raise RuntimeError("Could not find tier title")
 
 
 def digest(path: Path) -> str:
@@ -80,12 +75,38 @@ def main() -> None:
                     raise RuntimeError(
                         f"{relative_path}: expected RGB, got {image.mode}"
                     )
-                for y in range(281, 314):
+                with Image.open(SOURCE / relative_path) as source:
+                    source_rgb = source.convert("RGB")
+                    tier_top = find_tier_artwork_top(source_rgb)
+                    preserved_source = source_rgb.crop(
+                        (
+                            0,
+                            tier_top,
+                            EXPECTED_SIZE[0],
+                            EXPECTED_SIZE[1],
+                        )
+                    )
+                    preserved_output = image.crop(
+                        (
+                            0,
+                            tier_top,
+                            EXPECTED_SIZE[0],
+                            EXPECTED_SIZE[1],
+                        )
+                    )
+                    if ImageChops.difference(
+                        preserved_source,
+                        preserved_output,
+                    ).getbbox() is not None:
+                        raise RuntimeError(
+                            f"{relative_path}: tier artwork changed below "
+                            f"y={tier_top}"
+                        )
+                for y in range(HEADER_CARD_BOTTOM + 1, tier_top):
                     if foreground_count(image, y) >= 50:
                         raise RuntimeError(
                             f"{relative_path}: legacy header pixels remain at y={y}"
                         )
-                tier_top = find_tier_top(image)
                 if tier_top - HEADER_CARD_BOTTOM < MIN_CARD_TIER_GAP:
                     raise RuntimeError(
                         f"{relative_path}: card/tier gap is "

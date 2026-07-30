@@ -19,11 +19,12 @@ DIVIDER = (227, 230, 233, 255)
 
 CANVAS_SIZE = (1200, 600)
 LEGACY_HEADER_CLEAR_BOX = (570, 64, 1140, 324)
-HEADER_CARD_BOX = (650, 70, 1090, 280)
-BRAND_BASELINE_Y = 118
-DIVIDER_Y = 158
-CITY_CENTER_Y = 211
+HEADER_CARD_BOX = (650, 54, 1090, 264)
+BRAND_BASELINE_Y = 102
+DIVIDER_Y = 142
+CITY_CENTER_Y = 195
 MIN_TITLE_CITY_GAP = 40
+TIER_SCAN_BOX = (550, 270, 1170, 470)
 
 TEAM_STYLES = {
     "daegu": {"label": "DAEGU", "color": (0, 64, 153, 255)},
@@ -61,6 +62,83 @@ def load_city_font(label: str, max_width: int) -> ImageFont.FreeTypeFont:
         if right - left <= max_width:
             return candidate
     return ImageFont.truetype(str(LATIN_FONT_PATH), size=47)
+
+
+def is_foreground(pixel: tuple[int, ...]) -> bool:
+    red, green, blue = pixel[:3]
+    return (
+        min(red, green, blue) < 145
+        or (
+            max(red, green, blue) - min(red, green, blue) > 45
+            and min(red, green, blue) < 185
+        )
+    )
+
+
+def find_tier_artwork_top(source: Image.Image) -> int:
+    left, top, right, bottom = TIER_SCAN_BOX
+    width = right - left
+    height = bottom - top
+    source_rgb = source.convert("RGB")
+    pixels = source_rgb.load()
+    foreground = bytearray(width * height)
+
+    for y in range(top, bottom):
+        row_offset = (y - top) * width
+        for x in range(left, right):
+            if is_foreground(pixels[x, y]):
+                foreground[row_offset + x - left] = 1
+
+    visited = bytearray(width * height)
+    candidate_tops: list[int] = []
+    for start_index, present in enumerate(foreground):
+        if not present or visited[start_index]:
+            continue
+
+        stack = [start_index]
+        visited[start_index] = 1
+        component_left = component_right = start_index % width
+        component_top = component_bottom = start_index // width
+        area = 0
+
+        while stack:
+            index = stack.pop()
+            area += 1
+            x = index % width
+            y = index // width
+            component_left = min(component_left, x)
+            component_right = max(component_right, x)
+            component_top = min(component_top, y)
+            component_bottom = max(component_bottom, y)
+
+            neighbors = []
+            if x > 0:
+                neighbors.append(index - 1)
+            if x + 1 < width:
+                neighbors.append(index + 1)
+            if y > 0:
+                neighbors.append(index - width)
+            if y + 1 < height:
+                neighbors.append(index + width)
+            for neighbor in neighbors:
+                if foreground[neighbor] and not visited[neighbor]:
+                    visited[neighbor] = 1
+                    stack.append(neighbor)
+
+        component_width = component_right - component_left + 1
+        component_height = component_bottom - component_top + 1
+        absolute_top = component_top + top
+        if (
+            absolute_top >= 280
+            and component_width >= 12
+            and component_height >= 25
+            and area >= 100
+        ):
+            candidate_tops.append(absolute_top)
+
+    if not candidate_tops:
+        raise RuntimeError("Could not find tier artwork")
+    return min(candidate_tops)
 
 
 def draw_baseball_icon(
@@ -149,7 +227,11 @@ def clear_legacy_header(source: Image.Image) -> Image.Image:
     return Image.composite(replacement, cleared, hard_mask)
 
 
-def draw_header_card(source: Image.Image, team_id: str) -> Image.Image:
+def draw_header_card(
+    source: Image.Image,
+    team_id: str,
+    tier_artwork_top: int,
+) -> Image.Image:
     style = TEAM_STYLES[team_id]
     canvas = clear_legacy_header(source)
 
@@ -238,7 +320,16 @@ def draw_header_card(source: Image.Image, team_id: str) -> Image.Image:
     if underline_y + 7 > bottom - 14:
         raise RuntimeError(f"{team_id}: city underline exceeds header safe area")
 
-    return Image.alpha_composite(canvas, overlay)
+    result = Image.alpha_composite(canvas, overlay)
+
+    # Restore from the first connected component of the tier title. This keeps
+    # every original glyph pixel while still removing lower legacy city
+    # underlines whose vertical position varies between source images.
+    preserved_lower_artwork = source.convert("RGBA").crop(
+        (0, tier_artwork_top, CANVAS_SIZE[0], CANVAS_SIZE[1])
+    )
+    result.paste(preserved_lower_artwork, (0, tier_artwork_top))
+    return result
 
 
 def main() -> None:
@@ -261,7 +352,12 @@ def main() -> None:
         with Image.open(source_path) as source:
             if source.size != CANVAS_SIZE:
                 raise RuntimeError(f"Unexpected image size: {source_path} {source.size}")
-            result = draw_header_card(source, source_path.parent.name)
+            tier_artwork_top = find_tier_artwork_top(source)
+            result = draw_header_card(
+                source,
+                source_path.parent.name,
+                tier_artwork_top,
+            )
             result_rgb = result.convert("RGB")
             primary_output_path = OUTPUTS[0] / relative_path
             primary_output_path.parent.mkdir(parents=True, exist_ok=True)
